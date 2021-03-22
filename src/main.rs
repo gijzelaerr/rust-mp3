@@ -7,7 +7,7 @@ use std::io::SeekFrom;
 
 
 
-fn id3v2_3(header: &[u8]) -> u32 {
+fn id3v2_3(header: &[u8]) -> (u32, bool, bool, bool) {
     // https://id3.org/d3v2.3.0
     let flags = header[5];
     let unsynchronisation = (flags & 128) == 128;
@@ -39,20 +39,26 @@ fn id3v2_3(header: &[u8]) -> u32 {
     shifted[0] = size1 >> 3;
     let size = u32::from_be_bytes(shifted);
     println!("size: {}", size);
-    return size;
+    return (size, unsynchronisation, extended, experimental);
 
 }
 
 
-fn id3v2(header: &[u8]) {
+fn id3v2(header: &[u8], mut f: File) -> io::Result<()> {
     let major_version = header[3];
     let minor_version = header[4];
     println!("major version {}", major_version);
     println!("minor version {}", minor_version);
 
     if major_version == 3 {
-        id3v2_3(header);
+        let (size, _unsynchronisation, _extended, _experimental) = id3v2_3(header);
+        f.seek(SeekFrom::Start(10));
+        let mut tag: Vec<u8> = Vec::new();
+        f.take(size.into()).read_to_end(&mut tag);
+        println!("{:?}", tag)
+        
     }
+    return Ok(());
 }
 
 fn main() -> io::Result<()> {
@@ -72,15 +78,15 @@ fn main() -> io::Result<()> {
     
     if &header[0 .. 3] == id3 {
         println!("We are id3v2");
-        id3v2(&header);
+        id3v2(&header, f);
     }
 
-    let mut tag_buffer = [0; 10];
-    f.seek(SeekFrom::End(-128))?;
-    f.read_exact(&mut tag_buffer)?;
-    if tag_buffer == tag {
-        println!("We are ID3v1")
-    }
+    //let mut tag_buffer = [0; 10];
+    //f.seek(SeekFrom::End(-128))?;
+    //f.read_exact(&mut tag_buffer)?;
+    //if tag_buffer == tag {
+    //    println!("We are ID3v1")
+    //}
 
     Ok(())
 }

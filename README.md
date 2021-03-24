@@ -1,15 +1,50 @@
 # rust-mp3
-To learn rust i want to create a mp3 decoder
+To teach myself better rust skills i want to create a mp3 decoder from scratch.
 
 
 https://en.wikipedia.org/wiki/MP3
 
-http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
+## plan
 
-https://github.com/ejmahler/rust_dct
+### step 1 - Parse music.mp3
 
-https://wiki.multimedia.cx/index.php/MPEG-2_Transport_Stream
+music.mp3 is a mp3 file with the following specs:
+ * ID3 version 2.3.0
+ * MPEG ADTS
+ * layer III
+ * v1
+ * 224 kbps
+ * 32 kHz
+ * Stereo
 
-http://fileformats.archiveteam.org/wiki/ID3  # the ID3 tag is at the start, and probably id3v2
+ 
+ * [ ] read in file to memory
+ * [ ] parse id3v2.3.0 header http://fileformats.archiveteam.org/wiki/ID3 
+ * [ ] parse mpeg header http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
+ * [ ] understand https://wiki.multimedia.cx/index.php/MPEG-2_Transport_Stream
+ * [ ] parse a adts frame https://wiki.multimedia.cx/index.php/ADTS
+ * [ ] understand the mp3 spec https://www.diva-portal.org/smash/get/diva2:830195/FULLTEXT01.pdf
+ * [ ] decode mp3 frame for music.mp3 https://github.com/ejmahler/rust_dct
+   * [ ] get bit stream, find header
+   * [ ] decode side information
+   * [ ] decode scale factors
+   * [ ] decode huffman data
+   * [ ] requantize spectrum
+   * [ ] reorder spectrum
+   * [ ] joint stereo processing, if applicable
+   * [ ] alias reduction
+   * [ ] synthesize via imdct * overlap-add method
+   * [ ] synthesize via polyphase filter bank
+   * [ ] output pcm samples
+ * [ ] write to wav
 
-https://wiki.multimedia.cx/index.php/ADTS # but the layer seems to be set to 1, not 0 for music.mp3
+ ### step 2 - make more universe
+
+* [ ] add support for other id3v header
+* [ ] add decoding support for other non-music.mp3 specs
+* [ ] stream file
+* [ ] play audio
+
+### notes
+
+In ADTS the layer seems to be set to 1, not 0 for music.mp3

@@ -3,8 +3,7 @@ use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 use std::io::SeekFrom;
-
-
+use std::fs;
 
 
 fn id3v2_3(header: &[u8]) -> (u32, bool, bool, bool) {
@@ -44,21 +43,24 @@ fn id3v2_3(header: &[u8]) -> (u32, bool, bool, bool) {
 }
 
 
-fn id3v2(header: &[u8], mut f: File) -> io::Result<()> {
+fn id3v2(header: &[u8], mut f: File) -> Result<(u32, bool, bool, bool), &'static str> {
     let major_version = header[3];
     let minor_version = header[4];
     println!("major version {}", major_version);
     println!("minor version {}", minor_version);
 
-    if major_version == 3 {
-        let (size, _unsynchronisation, _extended, _experimental) = id3v2_3(header);
-        f.seek(SeekFrom::Start(10));
-        let mut tag: Vec<u8> = Vec::new();
-        f.take(size.into()).read_to_end(&mut tag);
-        println!("{:?}", tag)
-        
+    match major_version {
+        3 => Ok(id3v2_3(header)),
+        _ => Err("Unknown ID3 major version"),
     }
-    return Ok(());
+}
+
+fn checkId3(data) -> io::Result<(), &'static str> {
+    let id3 = "ID3".as_bytes();
+    if &data[0 .. 3] == id3 {
+        return Ok(())
+    }
+    Err("File doesn't start with ID3 string in header")
 }
 
 fn main() -> io::Result<()> {
@@ -67,16 +69,24 @@ fn main() -> io::Result<()> {
         panic!("usage: {} file.mp3", &args[0]);
     }
 
+    let file_path = &args[1];
+
     let id3 = "ID3".as_bytes();
     let tag = "TAG".as_bytes();
 
-    let mut f = File::open(&args[1])?;
-    let mut header = [0; 10];
-
-    f.seek(SeekFrom::Start(0))?;
-    f.read_exact(&mut header)?;
+    let content = std::fs::read(file_path);
+    match content {
+        Ok(v) => {
+            println!("working with version: {:?}", v);
+            if &v[0 .. 3] == id3 {
+                println!("We are id3v2");
+                let result = id3v2(&v[0 .. 10]);
+            }
+        },
+        Err(e) => panic!("error parsing file: {:?}", e),
+    }
     
-    if &header[0 .. 3] == id3 {
+    if content[0 .. 3] == id3 {
         println!("We are id3v2");
         id3v2(&header, f);
     }

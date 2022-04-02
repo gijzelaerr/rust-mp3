@@ -2,13 +2,13 @@ use std::env;
 use std::str;
 
 struct Header {
-    size: u32,
+    size: usize,
     unsynchronization: bool,
     extended: bool,
     experimental: bool,
 }
 
-fn get_size(header: &[u8]) -> u32 {
+fn get_size(header: &[u8]) -> usize {
     let size1 = header[0];
     let size2 = header[1];
     let size3 = header[2];
@@ -24,7 +24,7 @@ fn get_size(header: &[u8]) -> u32 {
     shifted[2] = (size2 << 6) | size3 >> 1;
     shifted[1] = (size1 << 5) | size2 >> 2;
     shifted[0] = size1 >> 3;
-    return u32::from_be_bytes(shifted);
+    return u32::from_be_bytes(shifted) as usize;
 }
 
 fn id3v2_3(header: &[u8]) -> Header {
@@ -56,6 +56,14 @@ fn id3v2(header: &[u8]) -> Result<Header, &'static str> {
     }
 }
 
+fn get_frame(data: &[u8], offset: usize) -> Result<(&str, &str, usize), Box<dyn std::error::Error>> {
+    let frame_id = str::from_utf8(&data[offset .. offset + 4])?;
+    let frame_size = get_size(&data[offset+4 .. offset+8]);
+    let flags = &data[offset+8 .. offset+10];
+    let frame_content = str::from_utf8(&data[offset+10 .. offset +10 + frame_size])?;
+    return Ok((frame_id, frame_content, frame_size));
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -67,23 +75,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let id3 = "ID3".as_bytes();
     let _tag = "TAG".as_bytes();
 
-    let content = std::fs::read(file_path)?;
-    if &content[0..3] != id3 {
+    let raw = std::fs::read(file_path)?;
+    if &raw[0..3] != id3 {
         return Err("unknown header version".into());
     }
     println!("We are id3v2");
-    let header = id3v2(&content[0..10])?;
+    let header = id3v2(&raw[0..10])?;
     println!("size: {}", header.size);
     println!("experimental: {}", header.experimental);
     println!("unsynchronization: {}", header.unsynchronization);
     println!("extended: {}", header.extended);
-    let frame_id = str::from_utf8(&content[10..14])?;
-    println!("frame id: {}", frame_id);
-    let frame_size = get_size(&content[14..18]);
-    let flags = &content[18..20];
-    println!("frame_size: {}", frame_size);
-    let frame_content =   str::from_utf8(&content[20..20+frame_size as usize])?;
-    println!("frame content: {}", frame_content);
 
+    let mut offset = 10;
+    loop {
+        let (id, content, size) = get_frame(&raw, offset)?;
+        println!("id: {}, content: {}, size: {}, offset: {}", id, content, size, offset);
+        offset += 10 + size;
+        if offset >=  header.size {
+            break;
+        }
+    }
     Ok(())
 }

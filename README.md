@@ -18,14 +18,14 @@ music.mp3 is a mp3 file with the following specs:
  * Stereo
 
  
- * [ ] read in file to memory
- * [ ] parse id3v2.3.0 header http://fileformats.archiveteam.org/wiki/ID3 
- * [ ] parse mpeg header http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
+ * [X] read in file to memory
+ * [X] parse id3v2.3.0 Header http://fileformats.archiveteam.org/wiki/ID3 
+ * [ ] parse mpeg Header http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
  * [ ] understand https://wiki.multimedia.cx/index.php/MPEG-2_Transport_Stream
  * [ ] parse a adts frame https://wiki.multimedia.cx/index.php/ADTS
  * [ ] understand the mp3 spec https://www.diva-portal.org/smash/get/diva2:830195/FULLTEXT01.pdf
  * [ ] decode mp3 frame for music.mp3 https://github.com/ejmahler/rust_dct
-   * [ ] get bit stream, find header
+   * [ ] get bit stream, find Header
    * [ ] decode side information
    * [ ] decode scale factors
    * [ ] decode huffman data
@@ -40,7 +40,7 @@ music.mp3 is a mp3 file with the following specs:
 
  ### step 2 - make more universe
 
-* [ ] add support for other id3v header
+* [ ] add support for other id3v Header
 * [ ] add decoding support for other non-music.mp3 specs
 * [ ] stream file
 * [ ] play audio

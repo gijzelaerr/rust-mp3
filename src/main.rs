@@ -1,3 +1,5 @@
+use std::convert::{TryInto};
+use crc::{Crc, CRC_16_IBM_SDLC};
 use std::env;
 use std::str;
 
@@ -7,6 +9,60 @@ struct Header {
     extended: bool,
     experimental: bool,
 }
+
+// all in kbps
+static BITRATE_INDEX_V1_L1: [i32; 15] = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448];
+static BITRATE_INDEX_V1_L2: [i32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384];
+static BITRATE_INDEX_V1_L3: [i32; 15] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+static BITRATE_INDEX_V2_L1: [i32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256];
+static BITRATE_INDEX_V2_L2L3: [i32; 15] = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+
+static SAMPLE_RATE_MPEG1: [i32; 3] = [44100, 48000, 32000];
+static SAMPLE_RATE_MPEG2: [i32; 3] = [22050, 24000, 16000];
+static SAMPLE_RATE_MPEG2_5: [i32; 3] = [11025, 12000, 8000];
+
+
+macro_rules! back_to_enum {
+    ($(#[$meta:meta])* $vis:vis enum $name:ident {
+        $($(#[$vmeta:meta])* $vname:ident $(= $val:expr)?,)*
+    }) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $($(#[$vmeta])* $vname $(= $val)?,)*
+        }
+
+        impl std::convert::TryFrom<u8> for $name {
+            type Error = ();
+
+            fn try_from(v: u8) -> Result<Self, Self::Error> {
+                match v {
+                    $(x if x == $name::$vname as u8 => Ok($name::$vname),)*
+                    _ => Err(()),
+                }
+            }
+        }
+    }
+}
+
+back_to_enum! {
+enum Layer {
+    Reserved = 0b00,
+    III = 0b01,
+    II = 0b10,
+    I = 0b11,
+}
+    }
+
+back_to_enum! {
+enum Mpeg {
+    IiV = 0b00, // MPEG Version 2.5
+    Reserved = 0b01,
+    II = 0b10, // ISO/IEC 13818-3
+    I = 0b11, // ISO/IEC 11172-3
+}
+}
+
+
 
 fn get_size(header: &[u8]) -> usize {
     let size1 = header[0];
@@ -39,7 +95,7 @@ fn id3v2_3(header: &[u8]) -> Header {
         panic!("invalid Header");
     }
 
-    let size = get_size(&header[6 .. 10]);
+    let size = get_size(&header[6..10]);
     return Header { size, unsynchronization, extended, experimental };
 }
 
@@ -57,10 +113,10 @@ fn id3v2(header: &[u8]) -> Result<Header, &'static str> {
 }
 
 fn get_frame(data: &[u8], offset: usize) -> Result<(&str, &str, usize), Box<dyn std::error::Error>> {
-    let frame_id = str::from_utf8(&data[offset .. offset + 4])?;
-    let frame_size = get_size(&data[offset+4 .. offset+8]);
-    let flags = &data[offset+8 .. offset+10];
-    let frame_content = str::from_utf8(&data[offset+10 .. offset +10 + frame_size])?;
+    let frame_id = str::from_utf8(&data[offset..offset + 4])?;
+    let frame_size = get_size(&data[offset + 4..offset + 8]);
+    let _flags = &data[offset + 8..offset + 10];
+    let frame_content = str::from_utf8(&data[offset + 10..offset + 10 + frame_size])?;
     return Ok((frame_id, frame_content, frame_size));
 }
 
@@ -81,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("We are id3v2");
     let header = id3v2(&raw[0..10])?;
-    println!("size: {}", header.size);
+    println!("header size: {}", header.size);
     println!("experimental: {}", header.experimental);
     println!("unsynchronization: {}", header.unsynchronization);
     println!("extended: {}", header.extended);
@@ -91,8 +147,110 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (id, content, size) = get_frame(&raw, offset)?;
         println!("id: {}, content: {}, size: {}, offset: {}", id, content, size, offset);
         offset += 10 + size;
-        if offset >=  header.size {
+        if offset >= header.size {
             break;
+        }
+    }
+
+    for i in header.size + 10 .. raw.len() {
+        if raw[i] == 0xff && (raw[i + 1] & 0b1110_0000) == 0b1110_0000 {
+            // 	Frame sync (all bits set)
+            let mpeg_version = raw[i + 1] >> 3 & 0b11;
+            let layer = raw[i + 1] >> 1 & 0b11;
+            let protected = raw[i + 1] & 0b1 != 0;
+
+            let bitrate_raw = raw[i + 2] >> 4;
+            let samplerate_raw = raw[i + 2] >> 2 & 0b11;
+            let padding = raw[i + 2] >> 1 & 0b1;
+            let _private = raw[i + 2] & 0b1;
+
+            let _mode = raw[i + 3] >> 6;
+            let _mode_extension = raw[i + 3] >> 4 & 0b11;
+
+            let _copy = raw[i + 3] >> 3 & 0b1;
+            let _home = raw[i + 3] >> 2 & 0b1;
+            let _emphasis = raw[i + 3] & 0b11;
+
+            if !mpeg_version & 0b10 == 0b10 {
+                println!("unsupported MPEG Audio version ID {}", mpeg_version);
+                println!("{}", mpeg_version);
+                println!("{}", !mpeg_version);
+                println!("{}", !mpeg_version & 0b10);
+                println!("{}", 0b10);
+                continue;
+            }
+
+            if layer == Layer::Reserved as u8 {
+                println!("reserved layer");
+                continue;
+            }
+
+            if bitrate_raw == 0xff {
+                println!("bad bitrate");
+                continue;
+            }
+
+            let bitrate = match mpeg_version.try_into() {
+                Ok(Mpeg::I) => {
+                    match layer.try_into() {
+                        Ok(Layer::I) => BITRATE_INDEX_V1_L1[bitrate_raw as usize] * 1000,
+                        Ok(Layer::II) => BITRATE_INDEX_V1_L2[bitrate_raw as usize] * 1000,
+                        Ok(Layer::III) => BITRATE_INDEX_V1_L3[bitrate_raw as usize] * 1000,
+                        Err(_) | Ok(Layer::Reserved) => continue,
+                    }
+                }
+                Ok(Mpeg::II) => {
+                    match layer.try_into() {
+                        Ok(Layer::I) => BITRATE_INDEX_V2_L1[bitrate_raw as usize] * 1000,
+                        Ok(Layer::II | Layer::III) => BITRATE_INDEX_V2_L2L3[bitrate_raw as usize] * 1000,
+                        Err(_) | Ok(Layer::Reserved) => continue,
+                    }
+                }
+                Err(_) | Ok(_) => continue,
+            };
+
+            let samplerate = match mpeg_version.try_into() {
+                Ok(Mpeg::I) => SAMPLE_RATE_MPEG1[samplerate_raw as usize],
+                Ok(Mpeg::II) => SAMPLE_RATE_MPEG2[samplerate_raw as usize],
+                Ok(Mpeg::IiV) => SAMPLE_RATE_MPEG2_5[samplerate_raw as usize],
+                Err(_) | Ok(_) => continue,
+            };
+
+            let frame_length_in_bytes = match layer.try_into() {
+                Ok(Layer::I) => (12 * bitrate / samplerate + padding as i32) * 4,
+                Ok(Layer::II | Layer::III) => 144 * bitrate / samplerate + padding as i32,
+                Err(_) | Ok(Layer::Reserved) => continue,
+            };
+
+            println!("mpeg_version {}", mpeg_version);
+            println!("layer {}", layer);
+            println!("protected {}", protected);
+            println!("bitrate {}", bitrate);
+            println!("samplerate {}", samplerate);
+            println!("padding {}", padding);
+            println!("frame_length_in_bytes {}", frame_length_in_bytes);
+
+            let frame_offset;
+            if protected {
+                let crc = ((raw[i + 4] as u16) << 8) | raw[i + 5] as u16;
+                println!("{}: {}", i, raw[i]);
+                println!("{}: {}", i+1, raw[i + 1]);
+                println!("{}: {}", i+2, raw[i + 2]);
+                println!("{}: {}", i+3, raw[i + 3]);
+                println!("{}: {}", i+4, raw[i + 4]);
+                println!("{}: {}", i+5, raw[i + 5]);
+                println!("crc {}", crc);
+                pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
+                frame_offset = i + 6;
+                let frame = &raw[frame_offset..frame_offset + frame_length_in_bytes as usize];
+                if X25.checksum(frame) != crc {
+                    continue
+                } else {
+                    println!("WE HAVE A FRAME");
+                }
+            } else {
+                frame_offset = i + 4;
+            }
         }
     }
     Ok(())

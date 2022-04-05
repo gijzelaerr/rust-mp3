@@ -173,10 +173,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if !mpeg_version & 0b10 == 0b10 {
                 println!("unsupported MPEG Audio version ID {}", mpeg_version);
-                println!("{}", mpeg_version);
-                println!("{}", !mpeg_version);
-                println!("{}", !mpeg_version & 0b10);
-                println!("{}", 0b10);
                 continue;
             }
 
@@ -185,10 +181,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
-            if bitrate_raw == 0xff {
-                println!("bad bitrate");
+            if bitrate_raw == 0xff || bitrate_raw > 14 {
+                println!("bad bitrate {}", bitrate_raw);
                 continue;
             }
+
+            if samplerate_raw > 2 {
+                println!("bad samplerate {}", samplerate_raw);
+                continue;
+            }
+
 
             let bitrate = match mpeg_version.try_into() {
                 Ok(Mpeg::I) => {
@@ -222,24 +224,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(_) | Ok(Layer::Reserved) => continue,
             };
 
-            println!("mpeg_version {}", mpeg_version);
-            println!("layer {}", layer);
-            println!("protected {}", protected);
-            println!("bitrate {}", bitrate);
-            println!("samplerate {}", samplerate);
-            println!("padding {}", padding);
-            println!("frame_length_in_bytes {}", frame_length_in_bytes);
+            //println!("mpeg_version {}", mpeg_version);
+            //println!("layer {}", layer);
+            //println!("protected {}", protected);
+            //println!("bitrate {}", bitrate);
+            //println!("samplerate {}", samplerate);
+            //println!("padding {}", padding);
+            //println!("frame_length_in_bytes {}", frame_length_in_bytes);
 
             let frame_offset;
             if protected {
                 let crc = ((raw[i + 4] as u16) << 8) | raw[i + 5] as u16;
-                println!("{}: {}", i, raw[i]);
-                println!("{}: {}", i+1, raw[i + 1]);
-                println!("{}: {}", i+2, raw[i + 2]);
-                println!("{}: {}", i+3, raw[i + 3]);
-                println!("{}: {}", i+4, raw[i + 4]);
-                println!("{}: {}", i+5, raw[i + 5]);
-                println!("crc {}", crc);
                 pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
                 frame_offset = i + 6;
                 let frame = &raw[frame_offset..frame_offset + frame_length_in_bytes as usize];

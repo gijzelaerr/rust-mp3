@@ -8,6 +8,7 @@ pub struct Id3Header {
 }
 
 
+#[derive(Debug)]
 pub struct Tag<'s> {
     id: &'s str,
     content: &'s str,
@@ -76,7 +77,9 @@ pub fn get_id3_frames<'s>(raw: &'s [u8], header: Id3Header) -> Result<(Vec<Tag<'
     let mut tags = Vec::new();
     loop {
         let (id, content, size) = get_id3_frame(&raw, offset)?;
-        tags.push(Tag { id, content });
+        let tag = Tag { id, content };
+        println!("{:?}", tag);
+        tags.push(tag);
         offset += 10 + size;
         if offset >= header.size {
             return Ok((tags, offset));

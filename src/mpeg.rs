@@ -15,7 +15,7 @@ static SAMPLE_RATE_MPEG2_5: [i32; 3] = [11025, 12000, 8000];
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
 #[repr(u8)]
-pub venum Layer {
+pub enum Layer {
     Reserved = 0b00,
     III = 0b01,
     II = 0b10,
@@ -42,7 +42,7 @@ pub enum Protection {
 pub struct MpegAudioFrameHeader {
     version: MpegVersion,
     layer: Layer,
-    pub(crate) protected: u8,
+     pub(crate) protected: Protection,
     bitrate_index: u8,
     sampling_rate_frequency_index: u8,
     padding: u8,
@@ -104,7 +104,7 @@ pub fn get_mpeg_audio_frame(raw: &[u8], offset: usize) -> MpegAudioFrameHeader {
     return MpegAudioFrameHeader {
         version: MpegVersion::try_from(version).unwrap(),
         layer: Layer::try_from(layer).unwrap(),
-        protected,
+        protected: Protection::try_from(protected).unwrap(),
         bitrate_index,
         sampling_rate_frequency_index,
         padding,
@@ -169,7 +169,7 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
     };
     println!("mpeg_version {:?}", header.version);
     println!("layer {:?}", header.layer);
-    println!("protected {}", header.protected);
+    println!("protected {:?}", header.protected);
     println!("bitrate {}", header.bitrate_index);
     println!("samplerate {}", header.sampling_rate_frequency_index);
     println!("padding {}", header.padding);

@@ -1,11 +1,12 @@
-mod id3;
 mod mpeg;
+mod util;
+mod id3;
 
 use crc::{Crc, CRC_16_IBM_SDLC};
 use std::env;
 
-use crate::mpeg::{get_mpeg_audio_frame, check_mpeg_audio_frame, Protection};
-use crate::id3::get_id3_frames;
+use mpeg::{get_mpeg_audio_frame, check_mpeg_audio_frame, Protection};
+use id3::get_id3_frames;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -31,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut offset = post_header_offset;
 
+    let mut first = true;
+
     loop {
         if !(raw[offset] == 0xff && (raw[offset + 1] & 0b1110_0000) == 0b1110_0000) {
             println!("skipping byte {}", offset);
@@ -38,19 +41,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
         // 	Frame sync (all bits set)
-        //println!("frame sync");
-        let audio_frame_header = get_mpeg_audio_frame(&raw, offset);
-        //println!("audio_frame_header {:#?}", audio_frame_header);
+        let audio_frame_header = get_mpeg_audio_frame(&raw[offset .. offset +4]);
         let derived_header_values = check_mpeg_audio_frame(&audio_frame_header);
-        //println!("derived_header_values {:#?}", derived_header_values);
 
-0;      let frame_crc_offset;
-        if audio_frame_header.protected == Protection::CRC {
-            frame_crc_offset = 2;
-        } else {
-            frame_crc_offset = 0;
+        if first {
+            println!("audio_frame_header {:#?}", audio_frame_header);
+            println!("derived_header_values {:#?}", derived_header_values);
+            first = false;
         }
 
+0;      let _frame_crc_offset;
+        if audio_frame_header.protected == Protection::CRC {
+            _frame_crc_offset = 2;
+        } else {
+            _frame_crc_offset = 0;
+        }
+
+        // so it turns out frame_length_in_bytes includes the header
         let frame_body_start = offset; // + frame_crc_offset + mpeg::MPEG_FRAME_HEADER_LENGTH as usize;
         let frame_body_end = frame_body_start + derived_header_values.frame_length_in_bytes as usize;
         let frame_body = &raw[frame_body_start .. frame_body_end];
@@ -61,7 +68,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Err("checksum doesn't match".into());
             }
         }
-        println!("WE HAVE A FRAME");
+
+        let side_information = match audio_frame_header.channel_mode {
+            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[..17]),
+            _ => mpeg::get_side_information_stereo(&frame_body[..32])
+        };
+
+        println!("side_information {:#?}", side_information);
 
         if frame_body_end >= raw.len() {
             println!("fin!");

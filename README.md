@@ -20,7 +20,7 @@ music.mp3 is a mp3 file with the following specs:
  
  * [X] read in file to memory
  * [X] parse id3v2.3.0 Header http://fileformats.archiveteam.org/wiki/ID3 
- * [ ] parse mpeg Header http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
+ * [X] parse mpeg Header http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
  * [ ] understand https://wiki.multimedia.cx/index.php/MPEG-2_Transport_Stream
  * [ ] parse a adts frame https://wiki.multimedia.cx/index.php/ADTS
  * [ ] understand the mp3 spec https://www.diva-portal.org/smash/get/diva2:830195/FULLTEXT01.pdf

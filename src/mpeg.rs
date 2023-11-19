@@ -3,17 +3,17 @@ use std::convert::TryFrom;
 use crate::util;
 
 
-pub const _MPEG_FRAME_HEADER_LENGTH: i8 = 4; // bytes
+pub const MPEG_FRAME_HEADER_LENGTH: usize = 4; // bytes
 
-static BITRATE_INDEX_V1_L1: [i32; 15] = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448];
-static BITRATE_INDEX_V1_L2: [i32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384];
-static BITRATE_INDEX_V1_L3: [i32; 15] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
-static BITRATE_INDEX_V2_L1: [i32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256];
-static BITRATE_INDEX_V2_L2L3: [i32; 15] = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+static BITRATE_INDEX_V1_L1: [u32; 15] = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448];
+static BITRATE_INDEX_V1_L2: [u32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384];
+static BITRATE_INDEX_V1_L3: [u32; 15] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+static BITRATE_INDEX_V2_L1: [u32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256];
+static BITRATE_INDEX_V2_L2L3: [u32; 15] = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
 
-static SAMPLE_RATE_MPEG1: [i32; 3] = [44100, 48000, 32000];
-static SAMPLE_RATE_MPEG2: [i32; 3] = [22050, 24000, 16000];
-static SAMPLE_RATE_MPEG2_5: [i32; 3] = [11025, 12000, 8000];
+static SAMPLE_RATE_MPEG1: [u32; 3] = [44100, 48000, 32000];
+static SAMPLE_RATE_MPEG2: [u32; 3] = [22050, 24000, 16000];
+static SAMPLE_RATE_MPEG2_5: [u32; 3] = [11025, 12000, 8000];
 
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
@@ -74,9 +74,9 @@ pub struct MpegAudioFrameHeader {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct DerivedMpegValues {
-    pub(crate) bitrate: i32,
-    pub(crate) samplerate: i32,
-    pub(crate) frame_length_in_bytes: i32,
+    pub(crate) bitrate: u32,
+    pub(crate) samplerate: u32,
+    pub(crate) frame_length_in_bytes: u32,
 }
 
 #[derive(Debug)]
@@ -143,6 +143,8 @@ pub fn get_mpeg_audio_frame(raw: &[u8]) -> MpegAudioFrameHeader {
     //M
     let emphasis = raw[3] & 0b11;
 
+
+
     return MpegAudioFrameHeader {
         version: MpegVersion::try_from(version).unwrap(),
         layer: Layer::try_from(layer).unwrap(),
@@ -205,8 +207,8 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
     };
 
     let frame_length_in_bytes = match header.layer {
-        Layer::I => (12 * bitrate / samplerate + header.padding as i32) * 4,
-        Layer::II | Layer::III => 144 * bitrate / samplerate + header.padding as i32,
+        Layer::I => (12 * bitrate / samplerate + header.padding as u32) * 4,
+        Layer::II | Layer::III => 144 * bitrate / samplerate + header.padding as u32,
         _ => panic!("bad frame length"),
     };
 
@@ -237,6 +239,8 @@ pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
     let preflag = util::extract_bits(raw, 118 + table_select_length, 1);
     let scalefac_scale = util::extract_bits(raw, 120 + table_select_length, 1);
     let count1table_select = util::extract_bits(raw, 122 + table_select_length, 1);
+
+    assert_eq!(private_bits, 0, "private bit must always be 0");
 
     SideInformation {
         main_data_begin,

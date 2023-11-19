@@ -1,6 +1,6 @@
-mod mpeg;
-mod util;
-mod id3;
+pub(crate) mod mpeg;
+pub(crate) mod util;
+pub(crate) mod id3;
 
 use crc::{Crc, CRC_16_IBM_SDLC};
 use std::env;
@@ -27,12 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let header = id3::id3v2(&raw[0..10])?;
     println!("header: {:#?}", header);
 
-    let (_frames, post_header_offset) = get_id3_frames(&raw[..header.size+10], header)?;
+    let (_frames, post_header_offset) = get_id3_frames(&raw[..header.size + 10], header)?;
     println!("post header offset: {}", post_header_offset);
 
     let mut offset = post_header_offset;
 
-    let mut first = true;
+    let mut firsts = 3;
 
     loop {
         if !(raw[offset] == 0xff && (raw[offset + 1] & 0b1110_0000) == 0b1110_0000) {
@@ -41,16 +41,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
         // 	Frame sync (all bits set)
-        let audio_frame_header = get_mpeg_audio_frame(&raw[offset .. offset +4]);
+        let audio_frame_header = get_mpeg_audio_frame(&raw[offset..offset + 4]);
         let derived_header_values = check_mpeg_audio_frame(&audio_frame_header);
 
-        if first {
+        if firsts > 0 {
             println!("audio_frame_header {:#?}", audio_frame_header);
             println!("derived_header_values {:#?}", derived_header_values);
-            first = false;
         }
 
-0;      let _frame_crc_offset;
+        0;
+        let _frame_crc_offset;
         if audio_frame_header.protected == Protection::CRC {
             _frame_crc_offset = 2;
         } else {
@@ -58,9 +58,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // so it turns out frame_length_in_bytes includes the header
-        let frame_body_start = offset; // + frame_crc_offset + mpeg::MPEG_FRAME_HEADER_LENGTH as usize;
+        let frame_body_start = offset;
         let frame_body_end = frame_body_start + derived_header_values.frame_length_in_bytes as usize;
-        let frame_body = &raw[frame_body_start .. frame_body_end];
+        let frame_body = &raw[frame_body_start..frame_body_end];
         if audio_frame_header.protected == Protection::CRC {
             pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
             let crc = ((raw[offset + 4] as u16) << 8) | raw[offset + 5] as u16;
@@ -71,19 +71,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let side_information = match audio_frame_header.channel_mode {
             mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[..17]),
-            _ => mpeg::get_side_information_stereo(&frame_body[..32])
+            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH..32])
         };
 
-        println!("side_information {:#?}", side_information);
-
+        if firsts > 0 {
+            println!("side_information {:#?}", side_information);
+        }
         if frame_body_end >= raw.len() {
             println!("fin!");
-            break;
-        } else {
-            offset = frame_body_end;
+            return Ok(());
         }
 
+        offset = frame_body_end;
+        firsts -= 1;
     }
-    Ok(())
 }
 

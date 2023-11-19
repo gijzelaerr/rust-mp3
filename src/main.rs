@@ -24,14 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("We are id3v2");
     let header = id3::id3v2(&raw[0..10])?;
-    println!("header size: {}", header.size);
-    println!("experimental: {}", header.experimental);
-    println!("unsynchronization: {}", header.unsynchronization);
-    println!("extended: {}", header.extended);
+    println!("header: {:#?}", header);
 
-    let (_frames, initial_offset) = get_id3_frames(&raw[..header.size+10], header)?;
+    let (_frames, post_header_offset) = get_id3_frames(&raw[..header.size+10], header)?;
+    println!("post header offset: {}", post_header_offset);
 
-    let mut offset = initial_offset;
+    let mut offset = post_header_offset;
+
     loop {
         if !(raw[offset] == 0xff && (raw[offset + 1] & 0b1110_0000) == 0b1110_0000) {
             println!("skipping byte {}", offset);
@@ -39,33 +38,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
         // 	Frame sync (all bits set)
-        println!("frame sync");
+        //println!("frame sync");
         let audio_frame_header = get_mpeg_audio_frame(&raw, offset);
+        //println!("audio_frame_header {:#?}", audio_frame_header);
         let derived_header_values = check_mpeg_audio_frame(&audio_frame_header);
+        //println!("derived_header_values {:#?}", derived_header_values);
 
-        let frame_offset;
+0;      let frame_crc_offset;
         if audio_frame_header.protected == Protection::CRC {
-            frame_offset = offset + 6;
+            frame_crc_offset = 2;
         } else {
-            frame_offset = offset + 4;
+            frame_crc_offset = 0;
         }
 
-        let frame_end = offset + frame_offset + derived_header_values.frame_length_in_bytes as usize;
-        let frame = &raw[offset + frame_offset..frame_end];
+        let frame_body_start = offset; // + frame_crc_offset + mpeg::MPEG_FRAME_HEADER_LENGTH as usize;
+        let frame_body_end = frame_body_start + derived_header_values.frame_length_in_bytes as usize;
+        let frame_body = &raw[frame_body_start .. frame_body_end];
         if audio_frame_header.protected == Protection::CRC {
             pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
             let crc = ((raw[offset + 4] as u16) << 8) | raw[offset + 5] as u16;
-            if X25.checksum(frame) != crc {
+            if X25.checksum(frame_body) != crc {
                 return Err("checksum doesn't match".into());
             }
         }
         println!("WE HAVE A FRAME");
 
-        if frame_end >= raw.len() {
+        if frame_body_end >= raw.len() {
             println!("fin!");
             break;
         } else {
-            offset = frame_end;
+            offset = frame_body_end;
         }
 
     }

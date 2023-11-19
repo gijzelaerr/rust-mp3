@@ -1,5 +1,7 @@
 use std::str;
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct Id3Header {
     pub(crate) size: usize,
     pub(crate) unsynchronization: bool,
@@ -9,6 +11,7 @@ pub struct Id3Header {
 
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Tag<'s> {
     id: &'s str,
     content: &'s str,
@@ -78,7 +81,7 @@ pub fn get_id3_frames<'s>(raw: &'s [u8], header: Id3Header) -> Result<(Vec<Tag<'
     loop {
         let (id, content, size) = get_id3_frame(&raw, offset)?;
         let tag = Tag { id, content };
-        println!("{:?}", tag);
+        println!("{:#?}", tag);
         tags.push(tag);
         offset += 10 + size;
         if offset >= header.size {

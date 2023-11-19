@@ -1,7 +1,8 @@
 use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
 
-// all in kbps
+pub const MPEG_FRAME_HEADER_LENGTH: i8 = 4; // bytes
+
 static BITRATE_INDEX_V1_L1: [i32; 15] = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448];
 static BITRATE_INDEX_V1_L2: [i32; 15] = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384];
 static BITRATE_INDEX_V1_L3: [i32; 15] = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
@@ -39,6 +40,8 @@ pub enum Protection {
     No = 0b1,    // no protection
 }
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct MpegAudioFrameHeader {
     version: MpegVersion,
     layer: Layer,
@@ -54,9 +57,11 @@ pub struct MpegAudioFrameHeader {
     emphasis: u8,
 }
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct DerivedMpegValues {
-    bitrate: i32,
-    samplerate: i32,
+    pub(crate) bitrate: i32,
+    pub(crate) samplerate: i32,
     pub(crate) frame_length_in_bytes: i32
 }
 
@@ -167,13 +172,6 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
         Layer::II | Layer::III => 144 * bitrate / samplerate + header.padding as i32,
         _ => panic!("bad frame length"),
     };
-    println!("mpeg_version {:?}", header.version);
-    println!("layer {:?}", header.layer);
-    println!("protected {:?}", header.protected);
-    println!("bitrate {}", header.bitrate_index);
-    println!("samplerate {}", header.sampling_rate_frequency_index);
-    println!("padding {}", header.padding);
-    println!("frame_length_in_bytes {}", frame_length_in_bytes);
 
     return DerivedMpegValues {
         bitrate,

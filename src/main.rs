@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("We are id3v2");
     let header = id3::id3v2(&raw[0..10])?;
-    println!("header: {:#?}", header);
+    //println!("header: {:#?}", header);
 
     let (_frames, post_header_offset) = get_id3_frames(&raw[..header.size + 10], header)?;
     println!("post header offset: {}", post_header_offset);
@@ -45,8 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let derived_header_values = check_mpeg_audio_frame(&audio_frame_header);
 
         if firsts > 0 {
-            println!("audio_frame_header {:#?}", audio_frame_header);
-            println!("derived_header_values {:#?}", derived_header_values);
+            //println!("audio_frame_header {:#?}", audio_frame_header);
+            //println!("derived_header_values {:#?}", derived_header_values);
         }
 
         0;
@@ -70,9 +70,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let side_information = match audio_frame_header.channel_mode {
-            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[..17]),
-            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH..32])
+            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. 17]),
+            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. 32])
         };
+
+        let main_data = match audio_frame_header.channel_mode {
+            mpeg::ChannelMode::SingleChannel => &frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH + 17 ..],
+            _ => &frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH + 32 ..]
+        };
+
+        println!("{:?}", main_data.len());
 
         if firsts > 0 {
             println!("side_information {:#?}", side_information);

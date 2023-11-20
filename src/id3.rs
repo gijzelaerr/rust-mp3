@@ -81,7 +81,7 @@ pub fn get_id3_frames<'s>(raw: &'s [u8], header: Id3Header) -> Result<(Vec<Tag<'
     loop {
         let (id, content, size) = get_id3_frame(&raw, offset)?;
         let tag = Tag { id, content };
-        println!("{:#?}", tag);
+        //println!("{:#?}", tag);
         tags.push(tag);
         offset += 10 + size;
         if offset >= header.size {

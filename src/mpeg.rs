@@ -85,21 +85,27 @@ pub struct SideInformation {
     pub(crate) main_data_begin: u32,
     pub(crate) private_bits: u32,
     pub(crate) scfsi: u32,
-    pub(crate) part2_3_length: u32,
-    pub(crate) big_values: u32,
-    pub(crate) global_gain: u32,
-    pub(crate) scalefac_compress: u32,
-    pub(crate) windows_switching_flag: u32,
-    pub(crate) block_type: u32,
-    pub(crate) mixed_block_flag: u32,
-    pub(crate) table_select: u32,
-    pub(crate) subblock_gain: u32,
-    pub(crate) region0_count: u32,
-    pub(crate) region1_count: u32,
-    pub(crate) preflag: u32,
-    pub(crate) scalefac_scale: u32,
-    pub(crate) count1table_select: u32,
+    pub(crate) granule0: Granule,
+    pub(crate) granule1: Granule,
+}
 
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Granule {
+    part2_3_length: u32,
+    big_values: u32,
+    global_gain: u32,
+    scalefac_compress: u32,
+    windows_switching_flag: u32,
+    block_type: u32,
+    mixed_block_flag: u32,
+    table_select: u32,
+    subblock_gain: u32,
+    region0_count: u32,
+    region1_count: u32,
+    preflag: u32,
+    scalefac_scale: u32,
+    count1table_select: u32,
 }
 
 
@@ -142,7 +148,6 @@ pub fn get_mpeg_audio_frame(raw: &[u8]) -> MpegAudioFrameHeader {
 
     //M
     let emphasis = raw[3] & 0b11;
-
 
 
     return MpegAudioFrameHeader {
@@ -220,87 +225,83 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
 }
 
 pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
-    // 17 bytes
-    let main_data_begin = util::extract_bits(raw, 0, 9);
-    let private_bits = util::extract_bits(raw, 9, 3);
-    let scfsi = util::extract_bits(raw, 14, 4);
-    let part2_3_length = util::extract_bits(raw, 22, 12);
-    let big_values = util::extract_bits(raw, 36, 9);
-    let global_gain = util::extract_bits(raw, 54, 8);
-    let scalefac_compress = util::extract_bits(raw, 70, 4);
-    let windows_switching_flag = util::extract_bits(raw, 78, 1);
-    let table_select_length: u8 = if windows_switching_flag == 1 { 20 } else { 30 };
-    let block_type = util::extract_bits(raw, 80, 2);
-    let mixed_block_flag = util::extract_bits(raw, 84, 1);
-    let table_select = util::extract_bits(raw, 86, table_select_length);
-    let subblock_gain = util::extract_bits(raw, 86 + table_select_length, 9);
-    let region0_count = util::extract_bits(raw, 104 + table_select_length, 4);
-    let region1_count = util::extract_bits(raw, 112 + table_select_length, 3);
-    let preflag = util::extract_bits(raw, 118 + table_select_length, 1);
-    let scalefac_scale = util::extract_bits(raw, 120 + table_select_length, 1);
-    let count1table_select = util::extract_bits(raw, 122 + table_select_length, 1);
+    let mut counter: u8 = 0;
+    let mut incremental_extract = |length: u8| -> u32 {
+        counter += length;
+        return util::extract_bits(raw, counter - length, length);
+    };
 
-    assert_eq!(private_bits, 0, "private bit must always be 0");
+    let mut granule_extract = || -> Granule {
+        return Granule {
+            part2_3_length: incremental_extract(12),
+            big_values: incremental_extract(9),
+            global_gain: incremental_extract(8),
+            scalefac_compress: incremental_extract(4),
+            windows_switching_flag: incremental_extract(1),
+            block_type: incremental_extract(2),
+            mixed_block_flag: incremental_extract(1),
+            table_select: incremental_extract(20),
+            subblock_gain: incremental_extract(9),
+            region0_count: incremental_extract(4),
+            region1_count: incremental_extract(3),
+            preflag: incremental_extract(1),
+            scalefac_scale: incremental_extract(1),
+            count1table_select: incremental_extract(1),
+        };
+    };
+
+    let main_data_begin = incremental_extract(9);
+    let private_bits = incremental_extract(3);
+    let scfsi = incremental_extract(4);
+    let granule0 = granule_extract();
+    let granule1 =  granule_extract();
 
     SideInformation {
         main_data_begin,
         private_bits,
         scfsi,
-        part2_3_length,
-        big_values,
-        global_gain,
-        scalefac_compress,
-        windows_switching_flag,
-        block_type,
-        mixed_block_flag,
-        table_select,
-        subblock_gain,
-        region0_count,
-        region1_count,
-        preflag,
-        scalefac_scale,
-        count1table_select,
+        granule0,
+        granule1
     }
 }
 
 pub fn get_side_information_stereo(raw: &[u8]) -> SideInformation {
-    // 32 bytes if it is a dual channel
-    let main_data_begin = util::extract_bits(raw, 0, 9);
-    let private_bits = util::extract_bits(raw, 9, 5);
-    let scfsi = util::extract_bits(raw, 14, 8);
-    let part2_3_length = util::extract_bits(raw, 22, 24);
-    let big_values = util::extract_bits(raw, 36, 18);
-    let global_gain = util::extract_bits(raw, 54, 16);
-    let scalefac_compress = util::extract_bits(raw, 70, 8);
-    let windows_switching_flag = util::extract_bits(raw, 78, 2);
-    let tabel_select_length = if windows_switching_flag == 1 { 20 } else { 30 };
-    let block_type = util::extract_bits(raw, 80, 4);
-    let mixed_block_flag = util::extract_bits(raw, 84, 2);
-    let table_select = util::extract_bits(raw, 86, tabel_select_length);
-    let subblock_gain = util::extract_bits(raw, 86 + tabel_select_length, 18);
-    let region0_count = util::extract_bits(raw, 104 + tabel_select_length, 8);
-    let region1_count = util::extract_bits(raw, 112 + tabel_select_length, 6);
-    let preflag = util::extract_bits(raw, 118 + tabel_select_length, 2);
-    let scalefac_scale = util::extract_bits(raw, 120 + tabel_select_length, 2);
-    let count1table_select = util::extract_bits(raw, 122 + tabel_select_length, 2);
+    let mut counter: u8 = 0;
+    let mut incremental_extract = |length: u8| -> u32 {
+        counter += length;
+        return util::extract_bits(raw, counter - length, length);
+    };
+
+    let mut granule_extract = || -> Granule {
+        return Granule {
+            part2_3_length: incremental_extract(24),
+            big_values: incremental_extract(18),
+            global_gain: incremental_extract(16),
+            scalefac_compress: incremental_extract(8),
+            windows_switching_flag: incremental_extract(2),
+            block_type: incremental_extract(4),
+            mixed_block_flag: incremental_extract(2),
+            table_select: incremental_extract(30),
+            subblock_gain: incremental_extract(18),
+            region0_count: incremental_extract(8),
+            region1_count: incremental_extract(6),
+            preflag: incremental_extract(2),
+            scalefac_scale: incremental_extract(2),
+            count1table_select: incremental_extract(2),
+        };
+    };
+
+    let main_data_begin = incremental_extract(9);
+    let private_bits = incremental_extract(5);
+    let scfsi = incremental_extract(8);
+    let granule0 = granule_extract();
+    let granule1 =  granule_extract();
 
     SideInformation {
         main_data_begin,
         private_bits,
         scfsi,
-        part2_3_length,
-        big_values,
-        global_gain,
-        scalefac_compress,
-        windows_switching_flag,
-        block_type,
-        mixed_block_flag,
-        table_select,
-        subblock_gain,
-        region0_count,
-        region1_count,
-        preflag,
-        scalefac_scale,
-        count1table_select,
+        granule0,
+        granule1
     }
 }

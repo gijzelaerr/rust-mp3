@@ -1,7 +1,6 @@
-use std::cell::Cell;
 use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
-use crate::util;
+use crate::{util};
 
 
 pub const MPEG_FRAME_HEADER_LENGTH: usize = 4; // bytes
@@ -225,87 +224,66 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
     };
 }
 
+fn incremental_extract(raw: &[u8], length: u16, counter: &mut u16) -> u32 {
+    *counter += length;
+    return util::extract_bits(raw, *counter - length, length);
+}
+
+fn granule_extract(raw: &[u8], counter: &mut u16, mode: ChannelMode) -> Granule {
+    match mode {
+        ChannelMode::SingleChannel =>     Granule {
+            part2_3_length: incremental_extract(raw, 12, counter),
+            big_values: incremental_extract(raw, 9, counter),
+            global_gain: incremental_extract(raw, 8,  counter),
+            scalefac_compress: incremental_extract(raw, 4,  counter),
+            windows_switching_flag: incremental_extract(raw, 1,  counter),
+            block_type: incremental_extract(raw, 2,  counter),
+            mixed_block_flag: incremental_extract(raw, 1,  counter),
+            table_select: incremental_extract(raw, 20,  counter),
+            subblock_gain: incremental_extract(raw, 9,  counter),
+            region0_count: incremental_extract(raw, 4,  counter),
+            region1_count: incremental_extract(raw, 3,  counter),
+            preflag: incremental_extract(raw, 1,  counter),
+            scalefac_scale: incremental_extract(raw, 1,  counter),
+            count1table_select: incremental_extract(raw, 1,  counter),
+        },
+        _ => Granule {
+            part2_3_length: incremental_extract(raw, 24,  counter),
+            big_values: incremental_extract(raw, 18,  counter),
+            global_gain: incremental_extract(raw, 16,  counter),
+            scalefac_compress: incremental_extract(raw, 8,  counter),
+            windows_switching_flag: incremental_extract(raw, 2,  counter),
+            block_type: incremental_extract(raw, 4,  counter),
+            mixed_block_flag: incremental_extract(raw, 2,  counter),
+            table_select: incremental_extract(raw, 30,  counter),
+            subblock_gain: incremental_extract(raw, 18,  counter),
+            region0_count: incremental_extract(raw, 8,  counter),
+            region1_count: incremental_extract(raw, 6,  counter),
+            preflag: incremental_extract(raw, 2,  counter),
+            scalefac_scale: incremental_extract(raw, 2,  counter),
+            count1table_select: incremental_extract(raw, 2,  counter),
+        }
+    }
+}
+
 pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
-    let counter = Cell::new(0);
-    let incremental_extract = |length: u8| -> u32 {
-        let new_counter = counter.get() + length;
-        counter.set(new_counter);
-        return util::extract_bits(raw, new_counter - length, length);
-    };
-
-    let granule_extract = || -> Granule {
-        return Granule {
-            part2_3_length: incremental_extract(12),
-            big_values: incremental_extract(9),
-            global_gain: incremental_extract(8),
-            scalefac_compress: incremental_extract(4),
-            windows_switching_flag: incremental_extract(1),
-            block_type: incremental_extract(2),
-            mixed_block_flag: incremental_extract(1),
-            table_select: incremental_extract(20),
-            subblock_gain: incremental_extract(9),
-            region0_count: incremental_extract(4),
-            region1_count: incremental_extract(3),
-            preflag: incremental_extract(1),
-            scalefac_scale: incremental_extract(1),
-            count1table_select: incremental_extract(1),
-        };
-    };
-
-    let main_data_begin = incremental_extract(9);
-    let private_bits = incremental_extract(3);
-    let scfsi = incremental_extract(4);
-    let granule0 = granule_extract();
-    let granule1 =  granule_extract();
-
+    let mut counter: u16 = 0;
     SideInformation {
-        main_data_begin,
-        private_bits,
-        scfsi,
-        granule0,
-        granule1
+        main_data_begin: incremental_extract(raw, 9, &mut counter),
+        private_bits: incremental_extract(raw, 3, &mut counter) ,
+        scfsi: incremental_extract(raw, 4, &mut counter),
+        granule0: granule_extract(raw, &mut counter, ChannelMode::SingleChannel),
+        granule1: granule_extract(raw, &mut counter, ChannelMode::SingleChannel),
     }
 }
 
 pub fn get_side_information_stereo(raw: &[u8]) -> SideInformation {
-    let counter = Cell::new(0);
-    let incremental_extract = |length: u8| -> u32 {
-        let new_counter = counter.get() + length;
-        counter.set(new_counter);
-        return util::extract_bits(raw, new_counter - length, length);
-    };
-
-
-    let granule_extract = || -> Granule {
-        return Granule {
-            part2_3_length: incremental_extract(24),
-            big_values: incremental_extract(18),
-            global_gain: incremental_extract(16),
-            scalefac_compress: incremental_extract(8),
-            windows_switching_flag: incremental_extract(2),
-            block_type: incremental_extract(4),
-            mixed_block_flag: incremental_extract(2),
-            table_select: incremental_extract(30),
-            subblock_gain: incremental_extract(18),
-            region0_count: incremental_extract(8),
-            region1_count: incremental_extract(6),
-            preflag: incremental_extract(2),
-            scalefac_scale: incremental_extract(2),
-            count1table_select: incremental_extract(2),
-        };
-    };
-
-    let main_data_begin = incremental_extract(9);
-    let private_bits = incremental_extract(5);
-    let scfsi = incremental_extract(8);
-    let granule0 = granule_extract();
-    let granule1 =  granule_extract();
-
+    let mut counter: u16 = 0;
     SideInformation {
-        main_data_begin,
-        private_bits,
-        scfsi,
-        granule0,
-        granule1
+        main_data_begin: incremental_extract(raw, 9, &mut counter),
+        private_bits: incremental_extract(raw, 5, &mut counter) ,
+        scfsi: incremental_extract(raw, 8, &mut counter),
+        granule0: granule_extract(raw, &mut counter, ChannelMode::Stereo),
+        granule1: granule_extract(raw, &mut counter, ChannelMode::Stereo),
     }
 }

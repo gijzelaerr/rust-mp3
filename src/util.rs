@@ -15,8 +15,8 @@ fn four_byte(raw: &[u8], pos: usize) -> u32 {
 }
 
 
-pub(crate) fn extract_bits(raw: &[u8], offset: u8, length: u8) -> u32 {
-    let start_byte: u8 = offset / 8;
+pub(crate) fn extract_bits(raw: &[u8], offset: u16, length: u16) -> u32 {
+    let start_byte: u16 = offset / 8;
     let end_byte = (length + offset).div_ceil(8);
     let shift = (8 - ((length + offset) % 8)) % 8;
     let num_bytes = end_byte - start_byte;

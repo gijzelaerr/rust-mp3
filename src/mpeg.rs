@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
 use crate::util;
@@ -225,13 +226,14 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
 }
 
 pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
-    let mut counter: u8 = 0;
-    let mut incremental_extract = |length: u8| -> u32 {
-        counter += length;
-        return util::extract_bits(raw, counter - length, length);
+    let counter = Cell::new(0);
+    let incremental_extract = |length: u8| -> u32 {
+        let new_counter = counter.get() + length;
+        counter.set(new_counter);
+        return util::extract_bits(raw, new_counter - length, length);
     };
 
-    let mut granule_extract = || -> Granule {
+    let granule_extract = || -> Granule {
         return Granule {
             part2_3_length: incremental_extract(12),
             big_values: incremental_extract(9),
@@ -266,13 +268,15 @@ pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
 }
 
 pub fn get_side_information_stereo(raw: &[u8]) -> SideInformation {
-    let mut counter: u8 = 0;
-    let mut incremental_extract = |length: u8| -> u32 {
-        counter += length;
-        return util::extract_bits(raw, counter - length, length);
+    let counter = Cell::new(0);
+    let incremental_extract = |length: u8| -> u32 {
+        let new_counter = counter.get() + length;
+        counter.set(new_counter);
+        return util::extract_bits(raw, new_counter - length, length);
     };
 
-    let mut granule_extract = || -> Granule {
+
+    let granule_extract = || -> Granule {
         return Granule {
             part2_3_length: incremental_extract(24),
             big_values: incremental_extract(18),

@@ -70,8 +70,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let side_information = match audio_frame_header.channel_mode {
-            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. 17]),
-            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. 32])
+            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. mpeg::MPEG_FRAME_HEADER_LENGTH + 17]),
+            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. mpeg::MPEG_FRAME_HEADER_LENGTH +32])
         };
 
         let main_data = match audio_frame_header.channel_mode {

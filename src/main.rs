@@ -1,11 +1,14 @@
 pub(crate) mod mpeg;
 pub(crate) mod util;
 pub(crate) mod id3;
+mod side_information;
+mod enums;
 
 use crc::{Crc, CRC_16_IBM_SDLC};
 use std::env;
+use enums::Protection;
 
-use mpeg::{get_mpeg_audio_frame, check_mpeg_audio_frame, Protection};
+use mpeg::{check_mpeg_audio_frame, get_mpeg_audio_frame};
 use id3::get_id3_frames;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,14 +72,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        let frame_length = mpeg::MPEG_FRAME_HEADER_LENGTH;
+
         let side_information = match audio_frame_header.channel_mode {
-            mpeg::ChannelMode::SingleChannel => mpeg::get_side_information_mono(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. mpeg::MPEG_FRAME_HEADER_LENGTH + 17]),
-            _ => mpeg::get_side_information_stereo(&frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH .. mpeg::MPEG_FRAME_HEADER_LENGTH +32])
+            enums::ChannelMode::SingleChannel => side_information::get_side_information_mono(&frame_body[frame_length..frame_length + 17]),
+            _ => side_information::get_side_information_stereo(&frame_body[frame_length..frame_length + 32])
         };
 
         let main_data = match audio_frame_header.channel_mode {
-            mpeg::ChannelMode::SingleChannel => &frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH + 17 ..],
-            _ => &frame_body[mpeg::MPEG_FRAME_HEADER_LENGTH + 32 ..]
+            enums::ChannelMode::SingleChannel => &frame_body[frame_length + 17..],
+            _ => &frame_body[frame_length + 32..]
         };
 
         println!("{:?}", main_data.len());

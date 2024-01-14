@@ -59,3 +59,8 @@ mod tests {
         }
     }
 }
+
+pub fn incremental_extract(raw: &[u8], length: u16, counter: &mut u16) -> u32 {
+    *counter += length;
+    return extract_bits(raw, *counter - length, length);
+}

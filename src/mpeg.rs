@@ -1,7 +1,6 @@
-use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
-use crate::{util};
-
+use crate::enums::{ChannelMode, DerivedMpegValues, Layer, MpegAudioFrameHeader, MpegVersion, Protection};
+use crate::util;
 
 pub const MPEG_FRAME_HEADER_LENGTH: usize = 4; // bytes
 
@@ -16,144 +15,24 @@ static SAMPLE_RATE_MPEG2: [u32; 3] = [22050, 24000, 16000];
 static SAMPLE_RATE_MPEG2_5: [u32; 3] = [11025, 12000, 8000];
 
 
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
-#[repr(u8)]
-pub enum Layer {
-    Reserved = 0b00,
-    III = 0b01,
-    II = 0b10,
-    I = 0b11,
-}
-
-
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
-#[repr(u8)]
-pub enum MpegVersion {
-    IiV = 0b00,
-    // MPEG Version 2.5
-    Reserved = 0b01,
-    II = 0b10,
-    // MPEG Version 2 ISO/IEC 13818-3
-    I = 0b11,   // MPEG Version 1 ISO/IEC 11172-3
-}
-
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
-#[repr(u8)]
-pub enum Protection {
-    CRC = 0b0,
-    // Protected by CRC (16bit crc follows header)
-    No = 0b1,    // no protection
-}
-
-#[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
-#[repr(u8)]
-pub enum ChannelMode {
-    Stereo = 0b00,
-    JointStereo = 0b01,
-    DualChannel = 0b10,
-    SingleChannel = 0b11,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct MpegAudioFrameHeader {
-    version: MpegVersion,
-    layer: Layer,
-    pub(crate) protected: Protection,
-    bitrate_index: u8,
-    sampling_rate_frequency_index: u8,
-    padding: u8,
-    private: u8,
-    pub(crate) channel_mode: ChannelMode,
-    mode_extension: u8,
-    copyright: u8,
-    original: u8,
-    emphasis: u8,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct DerivedMpegValues {
-    pub(crate) bitrate: u32,
-    pub(crate) samplerate: u32,
-    pub(crate) frame_length_in_bytes: u32,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct SideInformation {
-    pub(crate) main_data_begin: u32,
-    pub(crate) private_bits: u32,
-    pub(crate) scfsi: u32,
-    pub(crate) granule0: Granule,
-    pub(crate) granule1: Granule,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct Granule {
-    part2_3_length: u32,
-    big_values: u32,
-    global_gain: u16,
-    scalefac_compress: u8,
-    windows_switching_flag: u8,
-
-    // normal block
-    table_select: u32,
-    region0_count: u8,
-    region1_count: u8,
-
-    // start, stop and short block
-    block_type: u8,
-    mixed_block_flag: u8,
-    table_select_two_regions: u32,
-    subblock_gain: u16,
-
-    preflag: u8,
-    scalefac_scale: u8,
-    count1table_select: u8,
-}
-
-
 pub fn get_mpeg_audio_frame(raw: &[u8]) -> MpegAudioFrameHeader {
+    let mut counter: u16 = 0;
     // AAAAAAAA AAABBCCD EEEEFFGH IIJJKLMM
-    // we skip A since we already know it's all 1
+    let sync: u16 = util::incremental_extract(raw, 11, &mut counter) as u16;     // A
+    let version: u8 = util::incremental_extract(raw, 2, &mut counter) as u8;   // B
+    let layer: u8 = util::incremental_extract(raw, 2, &mut counter) as u8;      // C
+    let protected: u8 = util::incremental_extract(raw, 1, &mut counter) as u8; // D
+    let bitrate_index: u8 = util::incremental_extract(raw, 4, &mut counter) as u8; // E
+    let sampling_rate_frequency_index: u8 = util::incremental_extract(raw, 2, &mut counter) as u8; // F
+    let padding: u8 = util::incremental_extract(raw, 1, &mut counter) as u8; //G
+    let private: u8 = util::incremental_extract(raw, 1, &mut counter) as u8; // H
+    let channel_mode: u8 = util::incremental_extract(raw, 2, &mut counter) as u8; // I
+    let mode_extension: u8 = util::incremental_extract(raw, 2, &mut counter) as u8; // J
+    let copyright: u8 = util::incremental_extract(raw, 1, &mut counter) as u8; // K
+    let original: u8 = util::incremental_extract(raw, 1, &mut counter) as u8;  // L
+    let emphasis: u8 = util::incremental_extract(raw, 2, &mut counter) as u8; // M
 
-    //B
-    let version = raw[1] >> 3 & 0b11;
-
-    //C
-    let layer = raw[1] >> 1 & 0b11;
-
-    //D
-    let protected = raw[1] & 0b1;
-
-    //E
-    let bitrate_index = raw[2] >> 4;
-
-    //F
-    let sampling_rate_frequency_index = raw[2] >> 2 & 0b11;
-
-    //G
-    let padding = raw[2] >> 1 & 0b1;
-
-    //H
-    let private = raw[2] & 0b1;
-
-    //I
-    let channel_mode = raw[3] >> 6;
-
-    //J
-    let mode_extension = raw[3] >> 4 & 0b11;
-
-    //K
-    let copyright = raw[3] >> 3 & 0b1;
-
-    //L
-    let original = raw[3] >> 2 & 0b1;
-
-    //M
-    let emphasis = raw[3] & 0b11;
+    assert_eq!(sync, 0b11111111111, "bad sync");
 
 
     return MpegAudioFrameHeader {
@@ -228,78 +107,4 @@ pub(crate) fn check_mpeg_audio_frame(header: &MpegAudioFrameHeader) -> DerivedMp
         samplerate,
         frame_length_in_bytes,
     };
-}
-
-fn incremental_extract(raw: &[u8], length: u16, counter: &mut u16) -> u32 {
-    *counter += length;
-    return util::extract_bits(raw, *counter - length, length);
-}
-
-fn granule_extract(raw: &[u8], counter: &mut u16, mode: ChannelMode) -> Granule {
-    match mode {
-        ChannelMode::SingleChannel => Granule {
-            part2_3_length: incremental_extract(raw, 12, counter),
-            big_values: incremental_extract(raw, 9, counter),
-            global_gain: incremental_extract(raw, 8, counter) as u16,
-            scalefac_compress: incremental_extract(raw, 4, counter) as u8,
-            windows_switching_flag: incremental_extract(raw, 1, counter) as u8,
-            table_select: incremental_extract(raw, 20, counter),
-            //block_type: incremental_extract(raw, 2,  counter),
-            //mixed_block_flag: incremental_extract(raw, 1,  counter),
-            // table_selection:  incremental_extract(raw, 10,  counter),
-            //subblock_gain: incremental_extract(raw, 9,  counter),
-            block_type: 0,
-            mixed_block_flag: 0,
-            table_select_two_regions: 0,
-            subblock_gain: 0,
-            region0_count: incremental_extract(raw, 4, counter) as u8,
-            region1_count: incremental_extract(raw, 3, counter) as u8,
-            preflag: incremental_extract(raw, 1, counter) as u8,
-            scalefac_scale: incremental_extract(raw, 1, counter) as u8,
-            count1table_select: incremental_extract(raw, 1, counter) as u8,
-        },
-        _ => Granule {
-            part2_3_length: incremental_extract(raw, 24, counter),
-            big_values: incremental_extract(raw, 18, counter),
-            global_gain: incremental_extract(raw, 16, counter) as u16,
-            scalefac_compress: incremental_extract(raw, 8, counter) as u8,
-            windows_switching_flag: incremental_extract(raw, 2, counter) as u8,
-            table_select: incremental_extract(raw, 30, counter),
-            // block_type: incremental_extract(raw, 4,  counter),
-            // mixed_block_flag: incremental_extract(raw, 2,  counter),
-            // table_selection:  incremental_extract(raw, 20,  counter),
-            // subblock_gain: incremental_extract(raw, 12,  counter),
-            block_type: 0,
-            mixed_block_flag: 0,
-            table_select_two_regions: 0,
-            subblock_gain: 0,
-            region0_count: incremental_extract(raw, 8, counter) as u8,
-            region1_count: incremental_extract(raw, 6, counter) as u8,
-            preflag: incremental_extract(raw, 2, counter) as u8,
-            scalefac_scale: incremental_extract(raw, 2, counter) as u8,
-            count1table_select: incremental_extract(raw, 2, counter) as u8,
-        }
-    }
-}
-
-pub fn get_side_information_mono(raw: &[u8]) -> SideInformation {
-    let mut counter: u16 = 0;
-    SideInformation {
-        main_data_begin: incremental_extract(raw, 9, &mut counter),
-        private_bits: incremental_extract(raw, 5, &mut counter),
-        scfsi: incremental_extract(raw, 4, &mut counter),
-        granule0: granule_extract(raw, &mut counter, ChannelMode::SingleChannel),
-        granule1: granule_extract(raw, &mut counter, ChannelMode::SingleChannel),
-    }
-}
-
-pub fn get_side_information_stereo(raw: &[u8]) -> SideInformation {
-    let mut counter: u16 = 0;
-    SideInformation {
-        main_data_begin: incremental_extract(raw, 9, &mut counter),
-        private_bits: incremental_extract(raw, 3, &mut counter),
-        scfsi: incremental_extract(raw, 8, &mut counter),
-        granule0: granule_extract(raw, &mut counter, ChannelMode::Stereo),
-        granule1: granule_extract(raw, &mut counter, ChannelMode::Stereo),
-    }
 }
